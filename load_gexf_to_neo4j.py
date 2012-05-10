@@ -137,6 +137,8 @@ def add_to_timeline(root_node, node, timestamp):
 
 gdb = GraphDatabase(NEO4J_REST)
 
+tagsidx = gdb.nodes.indexes.create(name="tags", type="fulltext")
+
 REF_NODE = gdb.node[0]
 RUN = gdb.node(name=RUN_NAME, type='RUN')
 REF_NODE.relationships.create("HAS_RUN", RUN)
@@ -171,6 +173,7 @@ for frame_time in range(START_TIME, STOP_TIME, DELTAT):
             continue
         if not tag_id in TAG_DICT:
             tag = gdb.node(name='TAG_%04d' % tag_id, type='TAG', tag=tag_id)
+            tagsidx.add('tag', tag_id, tag)
             TAG_DICT[tag_id] = tag
             RUN.relationships.create("RUN_TAG", tag)
         else:
