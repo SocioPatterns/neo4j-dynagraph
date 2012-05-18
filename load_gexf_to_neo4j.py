@@ -217,24 +217,24 @@ with gdb.transaction():
         edge.relationships.create("EDGE_TAG", tag2)
         RUN.relationships.create("RUN_EDGE", edge)
 
-tx = gdb.transaction()
+tx = gdb.transaction(update=False)
 print 'Adding %s tags to frames'%len(frame_tags)
 for i, (frame, tag) in enumerate(frame_tags):
     if i%1000 == 0:
         sys.stdout.write('.')
         sys.stdout.flush()
         tx.commit()
-        tx = gdb.transaction()
+        tx = gdb.transaction(update=False)
     frame.relationships.create("FRAME_TAG", TAG_DICT[tag_id])
 tx.commit()
 
-tx = gdb.transaction()
+tx = gdb.transaction(update=False)
 print 'Adding %s edges to frames'%len(frame_edges)
 for i, (frame, edge) in enumerate(frame_edges):
     if i%1000 == 0:
         sys.stdout.write('.')
         sys.stdout.flush()
         tx.commit()
-        tx = gdb.transaction()
+        tx = gdb.transaction(update=False)
     frame.relationships.create("FRAME_EDGE", EDGE_DICT[(id1,id2)], weight=1)
 tx.commit()
