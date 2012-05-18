@@ -161,8 +161,7 @@ tx = gdb.transaction()
 
 for frame_time in range(START_TIME, STOP_TIME, DELTAT):
     frame_count += 1
-    if frame_count%100 == 0:
-        #print len(tx.operations)
+    if frame_count%1000 == 0:
         tx.commit()
         tx = gdb.transaction()
      
@@ -221,7 +220,7 @@ with gdb.transaction():
 tx = gdb.transaction()
 print 'Adding %s tags to frames'%len(frame_tags)
 for i, (frame, tag) in enumerate(frame_tags):
-    if i%100 == 0:
+    if i%1000 == 0:
         sys.stdout.write('.')
         sys.stdout.flush()
         tx.commit()
@@ -232,7 +231,7 @@ tx.commit()
 tx = gdb.transaction()
 print 'Adding %s edges to frames'%len(frame_edges)
 for i, (frame, edge) in enumerate(frame_edges):
-    if i%100 == 0:
+    if i%1000 == 0:
         sys.stdout.write('.')
         sys.stdout.flush()
         tx.commit()
