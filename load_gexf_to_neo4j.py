@@ -152,8 +152,20 @@ EDGE_DICT = {}
 frame_count = 0
 prev_frame = None
 
+tags = set()
+edges = set()
+frame_tags = []
+frame_edges = []
+
+tx = gdb.transaction()
+
 for frame_time in range(START_TIME, STOP_TIME, DELTAT):
     frame_count += 1
+    if frame_count%100 == 0:
+        #print len(tx.operations)
+        tx.commit()
+        tx = gdb.transaction()
+     
     interval = (frame_time, frame_time+DELTAT)
     print '#%d' % frame_count, time.ctime(frame_time)
 
@@ -171,15 +183,9 @@ for frame_time in range(START_TIME, STOP_TIME, DELTAT):
     for tag_id in NODE_TIMELINE:
         if not interval in NODE_TIMELINE[tag_id]:
             continue
-        if not tag_id in TAG_DICT:
-            tag = gdb.node(name='TAG_%04d' % tag_id, type='TAG', tag=tag_id)
-            tagsidx.add('tag', tag_id, tag)
-            TAG_DICT[tag_id] = tag
-            RUN.relationships.create("RUN_TAG", tag)
-        else:
-            tag = TAG_DICT[tag_id]
-
-        frame.relationships.create("FRAME_TAG", tag)
+        tags.add(tag_id)
+        
+        frame_tags.append((frame, tag_id))
 
     for (id1, id2) in EDGE_TIMELINE:
         if not interval in EDGE_TIMELINE[(id1,id2)]:
@@ -187,18 +193,49 @@ for frame_time in range(START_TIME, STOP_TIME, DELTAT):
 
         if id1 > id2:
             (id1, id2) = (id2, id1)
+            
+        edges.add((id1,id2))
+        
+        frame_edges.append((frame, (id1,id2)))
 
-        if not (id1,id2) in EDGE_DICT:
-            edge = gdb.node(name='EDGE_%04d_%04d' % (id1, id2), type='edge', tag1=id1, tag2=id2)
-            EDGE_DICT[(id1,id2)] = edge
-            tag1 = TAG_DICT[id1]
-            tag2 = TAG_DICT[id2]
-            edge.relationships.create("EDGE_TAG", tag1)
-            edge.relationships.create("EDGE_TAG", tag2)
-            RUN.relationships.create("RUN_EDGE", edge)
-        else:
-            edge = EDGE_DICT[(id1,id2)]
+tx.commit()
 
-        frame.relationships.create("FRAME_EDGE", edge, weight=1)
+with gdb.transaction():
+    print 'Adding %s tags'%len(tags)
+    for tag_id in tags:
+        tag = gdb.node(name='TAG_%04d' % tag_id, type='TAG', tag=tag_id)
+        tagsidx.add('tag', tag_id, tag)
+        TAG_DICT[tag_id] = tag
+        RUN.relationships.create("RUN_TAG", tag)
 
+    print 'Adding %s edges'%len(edges)
+    for (id1,id2) in edges:
+        edge = gdb.node(name='EDGE_%04d_%04d' % (id1, id2), type='edge', tag1=id1, tag2=id2)
+        EDGE_DICT[(id1,id2)] = edge
+        tag1 = TAG_DICT[id1]
+        tag2 = TAG_DICT[id2]
+        edge.relationships.create("EDGE_TAG", tag1)
+        edge.relationships.create("EDGE_TAG", tag2)
+        RUN.relationships.create("RUN_EDGE", edge)
 
+tx = gdb.transaction()
+print 'Adding %s tags to frames'%len(frame_tags)
+for i, (frame, tag) in enumerate(frame_tags):
+    if i%100 == 0:
+        sys.stdout.write('.')
+        sys.stdout.flush()
+        tx.commit()
+        tx = gdb.transaction()
+    frame.relationships.create("FRAME_TAG", TAG_DICT[tag_id])
+tx.commit()
+
+tx = gdb.transaction()
+print 'Adding %s edges to frames'%len(frame_edges)
+for i, (frame, edge) in enumerate(frame_edges):
+    if i%100 == 0:
+        sys.stdout.write('.')
+        sys.stdout.flush()
+        tx.commit()
+        tx = gdb.transaction()
+    frame.relationships.create("FRAME_EDGE", EDGE_DICT[(id1,id2)], weight=1)
+tx.commit()
