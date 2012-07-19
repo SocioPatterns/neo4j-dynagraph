@@ -137,7 +137,7 @@ def add_to_timeline(root_node, node, timestamp):
 
 gdb = GraphDatabase(NEO4J_REST)
 
-tagsidx = gdb.nodes.indexes.create(name="tags", type="fulltext")
+tagsidx = gdb.nodes.indexes.create(name="tags_%s" % RUN_NAME, type="fulltext")
 
 REF_NODE = gdb.node[0]
 RUN = gdb.node(name=RUN_NAME, type='RUN')
@@ -161,7 +161,7 @@ tx = gdb.transaction()
 
 for frame_time in range(START_TIME, STOP_TIME, DELTAT):
     frame_count += 1
-    if frame_count%1000 == 0:
+    if frame_count % 1000 == 0:
         tx.commit()
         tx = gdb.transaction()
      
@@ -200,16 +200,16 @@ for frame_time in range(START_TIME, STOP_TIME, DELTAT):
 tx.commit()
 
 with gdb.transaction():
-    print 'Adding %s tags'%len(tags)
+    print 'Adding %d tag nodes' % len(tags)
     for tag_id in tags:
         tag = gdb.node(name='TAG_%04d' % tag_id, type='TAG', tag=tag_id)
-        tagsidx.add('tag', tag_id, tag)
+        tagsidx.add('tag_id', tag_id, tag)
         TAG_DICT[tag_id] = tag
         RUN.relationships.create("RUN_TAG", tag)
 
-    print 'Adding %s edges'%len(edges)
+    print 'Adding %d edge nodes' % len(edges)
     for (id1,id2) in edges:
-        edge = gdb.node(name='EDGE_%04d_%04d' % (id1, id2), type='edge', tag1=id1, tag2=id2)
+        edge = gdb.node(name='EDGE_%04d_%04d' % (id1, id2), type='EDGE', tag1=id1, tag2=id2)
         EDGE_DICT[(id1,id2)] = edge
         tag1 = TAG_DICT[id1]
         tag2 = TAG_DICT[id2]
@@ -218,23 +218,28 @@ with gdb.transaction():
         RUN.relationships.create("RUN_EDGE", edge)
 
 tx = gdb.transaction(update=False)
-print 'Adding %s tags to frames'%len(frame_tags)
-for i, (frame, tag) in enumerate(frame_tags):
-    if i%1000 == 0:
+print 'Adding %d tag relations to frames' % len(frame_tags)
+for i, (frame, tag_id) in enumerate(frame_tags):
+    if (i+i) % 1000 == 0:
         sys.stdout.write('.')
         sys.stdout.flush()
         tx.commit()
         tx = gdb.transaction(update=False)
     frame.relationships.create("FRAME_TAG", TAG_DICT[tag_id])
 tx.commit()
+print
 
 tx = gdb.transaction(update=False)
-print 'Adding %s edges to frames'%len(frame_edges)
+print 'Adding %d edge relations to frames' % len(frame_edges)
 for i, (frame, edge) in enumerate(frame_edges):
-    if i%1000 == 0:
+    if (i+1) % 1000 == 0:
         sys.stdout.write('.')
         sys.stdout.flush()
         tx.commit()
         tx = gdb.transaction(update=False)
-    frame.relationships.create("FRAME_EDGE", EDGE_DICT[(id1,id2)], weight=1)
+    frame.relationships.create("FRAME_EDGE", EDGE_DICT[edge], weight=1)
 tx.commit()
+print
+
+print 'Done.'
+
