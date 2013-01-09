@@ -1,4 +1,4 @@
 neo4j-dynanets
 ==============
 
-Representing and mining dynamic graphs in Neo4j
+Representing and querying dynamic graphs in Neo4j
