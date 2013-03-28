@@ -101,7 +101,7 @@ STOP_TIME = max( [ t2 for (t1,t2) in FRAMES] )
 TLINE_DICT = {}
 
 def add_to_timeline(root_node, node, timestamp):
-    (year, month, day, hour) = time.localtime(timestamp)[:4]
+    (year, month, day, hour, minute, second) = time.localtime(timestamp)[:6]
 
     if year in TLINE_DICT:
         (root_node, tline) = TLINE_DICT[year]
@@ -132,6 +132,13 @@ def add_to_timeline(root_node, node, timestamp):
         (root_node, tline) = tline[hour]
 
     root_node.relationships.create("TIMELINE_INSTANCE", node, timestamp=timestamp)
+    
+    node['year'] = year
+    node['month'] = month
+    node['day'] = day
+    node['hour'] = hour
+    node['minute'] = minute
+    node['second'] = second
 
 # -----------------------------------------------------
 
