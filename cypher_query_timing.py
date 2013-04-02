@@ -94,6 +94,12 @@ MATCH ()-[d:NEXT_LEVEL]->()-[:NEXT_LEVEL]->()-[:TIMELINE_INSTANCE]-()-[:FRAME_TA
 RETURN DISTINCT(d.day)
 """ % TAG_ID
 
+QUERY6b = """
+START tag = node(%d)
+MATCH frame-[:FRAME_TAG]-tag
+RETURN DISTINCT(frame.day)
+""" % TAG_ID
+
 QUERY7 = """
 START tag1 = node(%d)
 MATCH tag1<-[:EDGE_TAG]-()-[:EDGE_TAG]->tag2
@@ -130,10 +136,71 @@ MATCH run-[:RUN_TAG]-tag-[r:EDGE_TAG]-()
 RETURN tag.name, COUNT(r) ORDER BY COUNT(r) DESC
 """ % RUN_ID
 
-QLIST = [('QUERY1', QUERY1), ('QUERY2', QUERY2), ('QUERY3', QUERY3), \
-    ('QUERY4', QUERY4), ('QUERY5', QUERY5), ('QUERY6', QUERY6), \
+# get the tag focused network during the day 29, hour 10
+
+QUERY11a = """
+START tag = node(%d)
+MATCH neigh1<-[:EDGE_TAG]-edge1-[:EDGE_TAG]->tag,
+      ()-[d1:NEXT_LEVEL]->()-[h1:NEXT_LEVEL]->()-[:TIMELINE_INSTANCE]-frame-[:FRAME_EDGE]-edge1
+WHERE d1.day = 29 and h1.hour = 10
+WITH  distinct neigh1, tag
+MATCH neigh2<-[:EDGE_TAG]-edge2-[:EDGE_TAG]->tag,
+      ()-[d2:NEXT_LEVEL]->()-[h2:NEXT_LEVEL]->()-[:TIMELINE_INSTANCE]-frame-[:FRAME_EDGE]-edge2
+WHERE d2.day = 29 and h2.hour = 10
+WITH distinct neigh2, neigh1
+MATCH neigh1<-[:EDGE_TAG]-edge3-[:EDGE_TAG]->neigh2,
+      ()-[d3:NEXT_LEVEL]->()-[h3:NEXT_LEVEL]->()-[:TIMELINE_INSTANCE]-frame-[:FRAME_EDGE]-edge3
+WHERE d3.day = 29 and h3.hour = 10
+RETURN distinct neigh1.tag, neigh2.tag ORDER BY neigh1.tag, neigh2.tag;
+""" % TAG_ID
+
+ret = gdb.query(q="""
+START run = node(%d)
+MATCH run-[:HAS_TIMELINE]->()-[y:NEXT_LEVEL]->()-[m:NEXT_LEVEL]->()-[d:NEXT_LEVEL]->()-[h:NEXT_LEVEL]->hour
+WHERE d.day = 29 and h.hour = 10
+RETURN hour
+""" % RUN_ID, returns=client.Node)[0]
+HOUR_ID = ret[0]._get_id()
+
+QUERY11b = """
+START tag = node(%d), hour = node(%d)
+MATCH neigh1<-[:EDGE_TAG]-edge1-[:EDGE_TAG]->tag,
+      hour-[:TIMELINE_INSTANCE]->frame-[:FRAME_EDGE]->edge1
+WITH  distinct hour, neigh1, tag
+MATCH neigh2<-[:EDGE_TAG]-edge2-[:EDGE_TAG]->tag,
+      hour-[:TIMELINE_INSTANCE]->frame-[:FRAME_EDGE]->edge2
+WITH distinct hour, neigh1, neigh2
+MATCH neigh1<-[:EDGE_TAG]-edge3-[:EDGE_TAG]->neigh2,
+      hour-[:TIMELINE_INSTANCE]->frame-[:FRAME_EDGE]->edge3
+RETURN distinct neigh1.tag, neigh2.tag ORDER BY neigh1.tag, neigh2.tag;
+""" % (TAG_ID, HOUR_ID)
+
+QUERY11c = """
+START tag = node(%d)
+MATCH neigh1<-[:EDGE_TAG]-edge1-[:EDGE_TAG]->tag,
+      frame1-[:FRAME_EDGE]->edge1
+WHERE frame1.day = 29 and frame1.hour = 10
+WITH  distinct neigh1, tag
+MATCH neigh2<-[:EDGE_TAG]-edge2-[:EDGE_TAG]->tag,
+      frame2-[:FRAME_EDGE]->edge2
+WHERE frame2.day = 29 and frame2.hour = 10
+WITH  distinct neigh1, neigh2
+MATCH neigh1<-[:EDGE_TAG]-edge3-[:EDGE_TAG]->neigh2,
+      frame3-[:FRAME_EDGE]->edge3
+WHERE frame3.day = 29 and frame3.hour = 10
+RETURN distinct neigh1.tag, neigh2.tag ORDER BY neigh1.tag, neigh2.tag;
+
+""" % TAG_ID
+
+
+
+
+QLIST = [
+    ('QUERY1', QUERY1), ('QUERY2', QUERY2), ('QUERY3', QUERY3), \
+    ('QUERY4', QUERY4), ('QUERY5', QUERY5), ('QUERY6', QUERY6), ('QUERY6b', QUERY6b),\
     ('QUERY7', QUERY7), ('QUERY8', QUERY8), ('QUERY9', QUERY9), \
-    ('QUERY10', QUERY10) ]
+    ('QUERY10', QUERY10),
+    ('QUERY11a', QUERY11a), ('QUERY11b', QUERY11b), ('QUERY11c', QUERY11c) ]
 
 # =========================================
 
@@ -147,6 +214,9 @@ def time_query(gdb, query, N=10):
         t2 = time.time()
 
         tlist.append(t2-t1)
+        
+#        sys.stdout.write(".")
+#        sys.stdout.flush()
 
     tlist.sort()
 
