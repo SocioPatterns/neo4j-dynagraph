@@ -10,6 +10,7 @@
 #
 # Copyright (C) 2012 ISI Foundation
 # written by Ciro Cattuto <ciro.cattuto@isi.it>
+# and Andre' Panisson <andre.panisson@isi.it>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -73,23 +74,23 @@ NODE_TIMELINE = {}
 nodes = graph.find('{http://www.gexf.net/1.2draft}nodes')
 
 for node in nodes.findall('{http://www.gexf.net/1.2draft}node'):
-    tag_id = int(node.get('id'))
-    if not tag_id in NODE_TIMELINE:
-        NODE_TIMELINE[tag_id] = set()
+    node_id = int(node.get('id'))
+    if not node_id in NODE_TIMELINE:
+        NODE_TIMELINE[node_id] = set()
     for spell in node.findall('{http://www.gexf.net/1.2draft}spells/{http://www.gexf.net/1.2draft}spell'):
         t1, t2 = int(spell.get('start')), int(spell.get('end'))
-        NODE_TIMELINE[tag_id].update( get_intervals(t1, t2) )
+        NODE_TIMELINE[node_id].update( get_intervals(t1, t2) )
 
 EDGE_TIMELINE = {}
 edges = graph.find('{http://www.gexf.net/1.2draft}edges')
 
 for edge in edges.findall('{http://www.gexf.net/1.2draft}edge'):
-    tag1, tag2= int(edge.get('source')), int(edge.get('target'))
-    if not (tag1,tag2) in EDGE_TIMELINE:
-        EDGE_TIMELINE[(tag1,tag2)] = set()
+    node1, node2 = int(edge.get('source')), int(edge.get('target'))
+    if not (node1,node2) in EDGE_TIMELINE:
+        EDGE_TIMELINE[(node1,node2)] = set()
     for spell in edge.findall('{http://www.gexf.net/1.2draft}spells/{http://www.gexf.net/1.2draft}spell'):
         t1, t2 = int(spell.get('start')), int(spell.get('end'))
-        EDGE_TIMELINE[(tag1,tag2)].update( get_intervals(t1, t2) )
+        EDGE_TIMELINE[(node1,node2)].update( get_intervals(t1, t2) )
 
 FRAMES = set()
 for interval_list in NODE_TIMELINE.values() + EDGE_TIMELINE.values():
@@ -144,7 +145,7 @@ def add_to_timeline(root_node, node, timestamp):
 
 gdb = GraphDatabase(NEO4J_REST)
 
-tagsidx = gdb.nodes.indexes.create(name="tags_%s" % RUN_NAME, type="fulltext")
+actorsidx = gdb.nodes.indexes.create(name="actors_%s" % RUN_NAME, type="fulltext")
 
 REF_NODE = gdb.node[0]
 RUN = gdb.node(name=RUN_NAME, type='RUN')
@@ -153,16 +154,16 @@ REF_NODE.relationships.create("HAS_RUN", RUN)
 TLINE = gdb.node(name='TIMELINE', type='TIMELINE', start=START_TIME, stop=STOP_TIME)
 RUN.relationships.create("HAS_TIMELINE", TLINE)
 
-TAG_DICT = {}
-EDGE_DICT = {}
+ACTOR_DICT = {}
+INTERACTION_DICT = {}
 
 frame_count = 0
 prev_frame = None
 
-tags = set()
-edges = set()
-frame_tags = []
-frame_edges = []
+actors = set()
+interactions = set()
+frame_actors = []
+frame_interactions = []
 
 tx = gdb.transaction()
 
@@ -186,12 +187,12 @@ for frame_time in range(START_TIME, STOP_TIME, DELTAT):
         prev_frame.relationships.create("FRAME_NEXT", frame)
     prev_frame = frame
 
-    for tag_id in NODE_TIMELINE:
-        if not interval in NODE_TIMELINE[tag_id]:
+    for actor_id in NODE_TIMELINE:
+        if not interval in NODE_TIMELINE[actor_id]:
             continue
-        tags.add(tag_id)
+        actors.add(actor_id)
         
-        frame_tags.append((frame, tag_id))
+        frame_actors.append((frame, actor_id))
 
     for (id1, id2) in EDGE_TIMELINE:
         if not interval in EDGE_TIMELINE[(id1,id2)]:
@@ -200,51 +201,51 @@ for frame_time in range(START_TIME, STOP_TIME, DELTAT):
         if id1 > id2:
             (id1, id2) = (id2, id1)
             
-        edges.add((id1,id2))
+        interactions.add((id1,id2))
         
-        frame_edges.append((frame, (id1,id2)))
+        frame_interactions.append((frame, (id1,id2)))
 
 tx.commit()
 
 with gdb.transaction():
-    print 'Adding %d tag nodes' % len(tags)
-    for tag_id in tags:
-        tag = gdb.node(name='TAG_%04d' % tag_id, type='TAG', tag=tag_id)
-        tagsidx.add('tag_id', tag_id, tag)
-        TAG_DICT[tag_id] = tag
-        RUN.relationships.create("RUN_TAG", tag)
+    print 'Adding %d ACTOR nodes' % len(actors)
+    for actor_id in actors:
+        actor = gdb.node(name='ACTOR_%04d' % actor_id, type='ACTOR', actor=actor_id)
+        actorsidx.add('actor_id', actor_id, actor)
+        ACTOR_DICT[actor_id] = actor
+        RUN.relationships.create("RUN_ACTOR", actor)
 
-    print 'Adding %d edge nodes' % len(edges)
-    for (id1,id2) in edges:
-        edge = gdb.node(name='EDGE_%04d_%04d' % (id1, id2), type='EDGE', tag1=id1, tag2=id2)
-        EDGE_DICT[(id1,id2)] = edge
-        tag1 = TAG_DICT[id1]
-        tag2 = TAG_DICT[id2]
-        edge.relationships.create("EDGE_TAG", tag1)
-        edge.relationships.create("EDGE_TAG", tag2)
-        RUN.relationships.create("RUN_EDGE", edge)
+    print 'Adding %d INTERACTION nodes' % len(interactions)
+    for (id1,id2) in interactions:
+        edge = gdb.node(name='INTERACTION_%04d_%04d' % (id1, id2), type='INTERACTION', actor1=id1, actor2=id2)
+        INTERACTION_DICT[(id1,id2)] = edge
+        actor1 = ACTOR_DICT[id1]
+        actor2 = ACTOR_DICT[id2]
+        edge.relationships.create("INTERACTION_ACTOR", actor1)
+        edge.relationships.create("INTERACTION_ACTOR", actor2)
+        RUN.relationships.create("RUN_INTERACTION", edge)
 
 tx = gdb.transaction(update=False)
-print 'Adding %d tag relations to frames' % len(frame_tags)
-for i, (frame, tag_id) in enumerate(frame_tags):
+print 'Adding %d ACTOR relations to frames' % len(frame_actors)
+for i, (frame, actor_id) in enumerate(frame_actors):
     if (i+i) % 1000 == 0:
         sys.stdout.write('.')
         sys.stdout.flush()
         tx.commit()
         tx = gdb.transaction(update=False)
-    frame.relationships.create("FRAME_TAG", TAG_DICT[tag_id])
+    frame.relationships.create("FRAME_ACTOR", ACTOR_DICT[actor_id])
 tx.commit()
 print
 
 tx = gdb.transaction(update=False)
-print 'Adding %d edge relations to frames' % len(frame_edges)
-for i, (frame, edge) in enumerate(frame_edges):
+print 'Adding %d INTERACTION relations to frames' % len(frame_interactions)
+for i, (frame, interaction) in enumerate(frame_interactions):
     if (i+1) % 1000 == 0:
         sys.stdout.write('.')
         sys.stdout.flush()
         tx.commit()
         tx = gdb.transaction(update=False)
-    frame.relationships.create("FRAME_EDGE", EDGE_DICT[edge], weight=1)
+    frame.relationships.create("FRAME_INTERACTION", INTERACTION_DICT[interaction], weight=1)
 tx.commit()
 print
 
